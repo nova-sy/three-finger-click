@@ -11,14 +11,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private lazy var actionRunner = ActionRunner(diagnostics: diagnostics)
     private var isEnabled = true
     private var lastRuntimeMessage: String?
+    private var accessibilityRetryTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         configureStatusItem()
-        startServices()
+        startServices(promptForAccessibility: true)
         refreshStatus()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        stopAccessibilityRetryTimer()
         clickTap?.stop()
         touchTracker?.stop()
     }
@@ -69,8 +71,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         let trusted = isProcessAccessibilityTrusted(prompt: false)
         diagnostics.setAccessibilityTrusted(trusted)
-        if trusted, clickTap == nil, lastRuntimeMessage?.contains("Accessibility permission") == true {
-            startServices()
+        if trusted, clickTap == nil, accessibilityRetryTimer != nil {
+            retryClickTapAfterAccessibilityChange()
         }
         refreshStatus()
     }
@@ -83,7 +85,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func restartServices() {
-        startServices()
+        startServices(promptForAccessibility: true)
         refreshStatus()
     }
 
@@ -97,7 +99,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApplication.shared.terminate(nil)
     }
 
-    private func startServices() {
+    private func startServices(promptForAccessibility: Bool) {
+        stopAccessibilityRetryTimer()
         clickTap?.stop()
         touchTracker?.stop()
         clickTap = nil
@@ -117,6 +120,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
 
+        startClickTap(promptForAccessibility: promptForAccessibility)
+    }
+
+    private func startClickTap(promptForAccessibility: Bool) {
+        guard let tracker = touchTracker else {
+            lastRuntimeMessage = "Touch tracker is unavailable."
+            diagnostics.setRuntimeMessage(lastRuntimeMessage)
+            return
+        }
+
+        clickTap?.stop()
+        clickTap = nil
+        diagnostics.setTapActive(false)
+
         let runner = actionRunner
         let tap = ClickTap(
             touchSnapshotProvider: { [weak tracker] in
@@ -130,13 +147,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         do {
             tap.setEnabled(isEnabled)
-            try tap.start(promptForAccessibility: true)
+            try tap.start(promptForAccessibility: promptForAccessibility)
             clickTap = tap
+            stopAccessibilityRetryTimer()
+            lastRuntimeMessage = nil
             diagnostics.setRuntimeMessage("Tap started")
         } catch {
+            if case ClickTapError.missingAccessibilityPermission = error {
+                lastRuntimeMessage = "Waiting for Accessibility permission."
+                diagnostics.setRuntimeMessage(lastRuntimeMessage)
+                startAccessibilityRetryTimer()
+                return
+            }
+
             lastRuntimeMessage = "Tap: \(error.localizedDescription)"
             diagnostics.setRuntimeMessage(lastRuntimeMessage)
         }
+    }
+
+    private func startAccessibilityRetryTimer() {
+        guard accessibilityRetryTimer == nil else {
+            return
+        }
+
+        accessibilityRetryTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.retryClickTapAfterAccessibilityChange()
+            }
+        }
+    }
+
+    private func stopAccessibilityRetryTimer() {
+        accessibilityRetryTimer?.invalidate()
+        accessibilityRetryTimer = nil
+    }
+
+    private func retryClickTapAfterAccessibilityChange() {
+        let trusted = isProcessAccessibilityTrusted(prompt: false)
+        diagnostics.setAccessibilityTrusted(trusted)
+
+        guard trusted else {
+            refreshStatus()
+            return
+        }
+
+        stopAccessibilityRetryTimer()
+        startClickTap(promptForAccessibility: false)
+        refreshStatus()
     }
 
     private func refreshStatus() {

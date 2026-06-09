@@ -17,6 +17,8 @@ open ~/Applications/ThreeFingerClick.app
 
 Grant Accessibility permission when macOS asks. If it does not ask, open the menu bar icon and choose `Open Accessibility Settings`, then enable `ThreeFingerClick`.
 
+After permission is granted, the app will automatically retry the event listener. You should not need to quit or click `Restart Listener` again.
+
 ## Daily Use
 
 You do not need to rebuild every time. After installation, launch:
@@ -38,6 +40,8 @@ scripts/install-app.sh
 ```
 
 If macOS stops recognizing the app after reinstalling, remove and re-add `~/Applications/ThreeFingerClick.app` in Accessibility settings.
+
+Unsigned local builds may be treated as a new app after deletion, reinstall, or path changes. Keep the app at `~/Applications/ThreeFingerClick.app` for the most stable Accessibility permission behavior.
 
 ## Development
 
