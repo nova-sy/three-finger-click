@@ -11,7 +11,7 @@ Download the latest release zip from GitHub Releases, unzip it, and move `ThreeF
 For local development builds, install to a stable local path:
 
 ```bash
-rtk scripts/install-app.sh
+scripts/install-app.sh
 open ~/Applications/ThreeFingerClick.app
 ```
 
@@ -34,7 +34,7 @@ To start automatically on login, add `~/Applications/ThreeFingerClick.app` in `S
 Only rebuild when source code changes:
 
 ```bash
-rtk scripts/install-app.sh
+scripts/install-app.sh
 ```
 
 If macOS stops recognizing the app after reinstalling, remove and re-add `~/Applications/ThreeFingerClick.app` in Accessibility settings.
@@ -42,9 +42,9 @@ If macOS stops recognizing the app after reinstalling, remove and re-add `~/Appl
 ## Development
 
 ```bash
-rtk swift test
-rtk swift build
-rtk scripts/build-app.sh
+swift test
+swift build
+scripts/build-app.sh
 ```
 
 `dist/ThreeFingerClick.app` is the generated build artifact. `~/Applications/ThreeFingerClick.app` is the recommended installed copy.
