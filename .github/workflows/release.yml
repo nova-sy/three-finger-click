@@ -55,7 +55,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          zip_name="ThreeFingerClick-${{ steps.version.outputs.tag }}-macos-arm64.zip"
+          zip_name="ThreeFingerClick-${{ steps.version.outputs.tag }}-macos-universal.zip"
           ditto -c -k --sequesterRsrc --keepParent dist/ThreeFingerClick.app "$zip_name"
           shasum -a 256 "$zip_name" > "$zip_name.sha256"
           echo "ZIP_NAME=$zip_name" >> "$GITHUB_ENV"

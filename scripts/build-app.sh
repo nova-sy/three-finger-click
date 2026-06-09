@@ -5,18 +5,32 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_NAME="ThreeFingerClick"
 APP_VERSION="${APP_VERSION:-0.1.0}"
 APP_BUILD="${APP_BUILD:-1}"
+APP_ARCHS="${APP_ARCHS:-arm64 x86_64}"
 APP_DIR="$ROOT_DIR/dist/$APP_NAME.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
-BINARY_PATH="$ROOT_DIR/.build/release/$APP_NAME"
+UNIVERSAL_BINARY_PATH="$ROOT_DIR/dist/$APP_NAME-universal"
 
 cd "$ROOT_DIR"
-swift build -c release --product "$APP_NAME"
 
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
-cp "$BINARY_PATH" "$MACOS_DIR/$APP_NAME"
+
+binary_paths=()
+for arch in $APP_ARCHS; do
+    swift build -c release --product "$APP_NAME" --arch "$arch"
+    binary_paths+=("$ROOT_DIR/.build/$arch-apple-macosx/release/$APP_NAME")
+done
+
+if [[ "${#binary_paths[@]}" -eq 1 ]]; then
+    cp "${binary_paths[0]}" "$MACOS_DIR/$APP_NAME"
+else
+    lipo -create "${binary_paths[@]}" -output "$UNIVERSAL_BINARY_PATH"
+    cp "$UNIVERSAL_BINARY_PATH" "$MACOS_DIR/$APP_NAME"
+    rm -f "$UNIVERSAL_BINARY_PATH"
+fi
+
 chmod +x "$MACOS_DIR/$APP_NAME"
 
 cat > "$CONTENTS_DIR/Info.plist" <<PLIST
@@ -46,4 +60,4 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 </plist>
 PLIST
 
-echo "Built $APP_DIR ($APP_VERSION build $APP_BUILD)"
+echo "Built $APP_DIR ($APP_VERSION build $APP_BUILD, archs: $APP_ARCHS)"

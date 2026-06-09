@@ -59,7 +59,7 @@ The workflow in `.github/workflows/release.yml`:
 2. Finds the latest `vX.Y.Z` tag.
 3. Increments the patch version, starting at `v0.1.0`.
 4. Builds `dist/ThreeFingerClick.app` with that version.
-5. Packages `ThreeFingerClick-vX.Y.Z-macos-arm64.zip`.
+5. Packages `ThreeFingerClick-vX.Y.Z-macos-universal.zip` for Apple Silicon and Intel Macs.
 6. Publishes the release with GitHub CLI: `gh release create`.
 
 To open source the project from this local directory:
