@@ -43,6 +43,8 @@ If macOS stops recognizing the app after reinstalling, remove and re-add `~/Appl
 
 Unsigned local builds may be treated as a new app after deletion, reinstall, or path changes. Keep the app at `~/Applications/ThreeFingerClick.app` for the most stable Accessibility permission behavior.
 
+If you used a version before `v0.1.4`, remove the old `ThreeFingerClick` entry from Accessibility settings once, install the latest release, then grant permission again. Earlier builds did not sign the full app bundle, which could prevent macOS from matching the authorized app to the running listener.
+
 ## Development
 
 ```bash
