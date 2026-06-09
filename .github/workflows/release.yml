@@ -1,0 +1,74 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and publish release
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run tests
+        run: swift test
+
+      - name: Compute next version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          latest_tag="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1)"
+          if [[ -z "$latest_tag" ]]; then
+            version="0.1.0"
+          else
+            base="${latest_tag#v}"
+            IFS='.' read -r major minor patch <<< "$base"
+            version="$major.$minor.$((patch + 1))"
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          echo "build=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - name: Build app
+        env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
+          APP_BUILD: ${{ steps.version.outputs.build }}
+        run: scripts/build-app.sh
+
+      - name: Package app
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip_name="ThreeFingerClick-${{ steps.version.outputs.tag }}-macos-arm64.zip"
+          ditto -c -k --sequesterRsrc --keepParent dist/ThreeFingerClick.app "$zip_name"
+          shasum -a 256 "$zip_name" > "$zip_name.sha256"
+          echo "ZIP_NAME=$zip_name" >> "$GITHUB_ENV"
+
+      - name: Publish GitHub release with gh CLI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "${{ steps.version.outputs.tag }}" \
+            "$ZIP_NAME" \
+            "$ZIP_NAME.sha256" \
+            --target "$GITHUB_SHA" \
+            --title "ThreeFingerClick ${{ steps.version.outputs.tag }}" \
+            --notes "Automated release from main branch commit $GITHUB_SHA."
