@@ -2,6 +2,36 @@ import CoreFoundation
 import Darwin
 import Foundation
 
+struct TouchSnapshotStore: Equatable {
+    private var snapshotsByDeviceID: [UInt: TouchSnapshot] = [:]
+
+    var latestSnapshot: TouchSnapshot? {
+        latestSnapshot(preferredFingerCount: 3)
+    }
+
+    mutating func update(deviceID: UInt, fingerCount: Int, timestamp: TimeInterval) {
+        snapshotsByDeviceID[deviceID] = TouchSnapshot(
+            fingerCount: fingerCount,
+            timestamp: timestamp
+        )
+    }
+
+    mutating func removeAll() {
+        snapshotsByDeviceID.removeAll()
+    }
+
+    func latestSnapshot(preferredFingerCount: Int) -> TouchSnapshot? {
+        let snapshots = snapshotsByDeviceID.values
+        if let preferred = snapshots
+            .filter({ $0.fingerCount == preferredFingerCount })
+            .max(by: { $0.timestamp < $1.timestamp }) {
+            return preferred
+        }
+
+        return snapshots.max(by: { $0.timestamp < $1.timestamp })
+    }
+}
+
 enum TouchTrackerError: LocalizedError {
     case frameworkUnavailable
     case missingSymbol(String)
@@ -44,7 +74,7 @@ final class TouchTracker {
     private var devices: [UnsafeMutableRawPointer] = []
     private var stopDevice: MTDeviceStopFunction?
     private var releaseDevice: MTDeviceReleaseFunction?
-    private var snapshot: TouchSnapshot?
+    private var snapshots = TouchSnapshotStore()
     private let diagnostics: DiagnosticsStore?
 
     init(diagnostics: DiagnosticsStore? = nil) {
@@ -53,7 +83,7 @@ final class TouchTracker {
 
     var latestSnapshot: TouchSnapshot? {
         lock.withLock {
-            snapshot
+            snapshots.latestSnapshot
         }
     }
 
@@ -109,7 +139,7 @@ final class TouchTracker {
         }
         devices.removeAll()
         lock.withLock {
-            snapshot = nil
+            snapshots.removeAll()
         }
         TouchTracker.activeTracker = nil
 
@@ -119,10 +149,15 @@ final class TouchTracker {
         frameworkHandle = nil
     }
 
-    fileprivate func updateFingerCount(_ fingerCount: Int) {
+    fileprivate func updateFingerCount(_ fingerCount: Int, for device: UnsafeMutableRawPointer?) {
+        guard let device else {
+            return
+        }
+
         let timestamp = ProcessInfo.processInfo.systemUptime
         lock.withLock {
-            snapshot = TouchSnapshot(
+            snapshots.update(
+                deviceID: UInt(bitPattern: device),
                 fingerCount: fingerCount,
                 timestamp: timestamp
             )
@@ -138,7 +173,7 @@ final class TouchTracker {
     }
 }
 
-private let touchFrameCallback: TouchTracker.MTContactFrameCallback = { _, _, fingerCount, _, _ in
-    TouchTracker.activeTracker?.updateFingerCount(Int(fingerCount))
+private let touchFrameCallback: TouchTracker.MTContactFrameCallback = { device, _, fingerCount, _, _ in
+    TouchTracker.activeTracker?.updateFingerCount(Int(fingerCount), for: device)
     return 0
 }

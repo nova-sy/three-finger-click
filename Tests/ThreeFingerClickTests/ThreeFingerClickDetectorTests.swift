@@ -54,6 +54,21 @@ struct ThreeFingerClickDetectorTests {
         #expect(!up.triggerAction)
     }
 
+    @Test("three-finger touch from one device is not overwritten by zero-finger frame from another device")
+    func threeFingerTouchFromOneDeviceSurvivesZeroFrameFromAnotherDevice() {
+        var snapshots = TouchSnapshotStore()
+        snapshots.update(deviceID: 1, fingerCount: 3, timestamp: 1.00)
+        snapshots.update(deviceID: 2, fingerCount: 0, timestamp: 1.02)
+
+        var detector = ThreeFingerClickDetector()
+        let down = detector.handle(
+            ClickInput(phase: .down, timestamp: 1.05, location: .zero),
+            touch: snapshots.latestSnapshot
+        )
+
+        #expect(down.consumeOriginalClick)
+    }
+
     @Test("long click is consumed but does not trigger")
     func longClickDoesNotTrigger() {
         var detector = ThreeFingerClickDetector()
